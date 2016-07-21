@@ -1,0 +1,1 @@
+{"username": "your_gmail_email", "to": "send_to_whom", "password": "app_password", "from": "rpi@A303", "subject": "RPI A303 event"}

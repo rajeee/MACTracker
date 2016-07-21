@@ -43,6 +43,7 @@ def saveRecord(macaddress,record):
 status_knowledge_file = 'knowledge.txt'
 owner_knowledge_file = 'ownerknowledge.txt'
 while(True):
+    print "Running nmap"
     nmap = subprocess.check_output('sudo nmap -sP -PE -PA21,23,80,3389 192.168.10.1/24',shell=True)
     try:
         with open(status_knowledge_file,'r') as f:

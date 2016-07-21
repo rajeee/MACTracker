@@ -86,7 +86,7 @@ while(True):
             if len(host_and_ip) > 0:
                 new_knowledge[match[2]] = list(((1,owner,) + host_and_ip[0] + match[1:2]+match[3:]))
             else:
-                new_knowledge[match[2]] = list(((1,owner,) + ('Unknown Hostname',) + match[1:2]+match[3:]))
+                new_knowledge[match[2]] = list(((1,owner,) + ('Unknown Hostname',) + match[0:2]+match[3:]))
 
         print new_knowledge
         if i==0:

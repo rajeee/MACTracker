@@ -18,12 +18,18 @@ Host is up (0.16s latency).
 MAC Address: 50:C8:E5:BC:55:FA (Unknown)
 Nmap scan report for 192.168.0.4"""
 
-smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
-smtpObj.starttls()
 with open('email_info.txt','r') as f:
     account = json.load(f)
 
-smtpObj.login(account['username'],account['password'])
+smtpObj = None
+
+def email_login():
+    global smtpObj
+    smtpObj = smtplib.SMTP('smtp.gmail.com', 587)
+    smtpObj.starttls()
+    smtpObj.login(account['username'],account['password'])
+
+email_login()
 
 email_from = account['from']
 email_to = account['to']
@@ -32,7 +38,12 @@ email_subject = account['subject']
 def sendEmail(text):
     email_text = 'From: '+email_from+'\nTo: '+email_to+'\nSubject: '+email_subject+'\n\n'+text
     print 'sending email with text:\n'+email_text
-    smtpObj.sendmail(email_from,email_to,email_text)
+    try:
+        smtpObj.sendmail(email_from,email_to,email_text)
+    except smtplib.SMTPServerDisconnected as error:
+        print "Email timed out. Relogin"
+        email_login()
+        smtpObj.sendmail(email_from,email_to,email_text)
 
 def saveRecord(macaddress,record):
     file_name = macaddress.replace(':','_')
@@ -44,13 +55,15 @@ def saveRecord(macaddress,record):
 status_knowledge_file = 'knowledge.txt'
 owner_knowledge_file = 'owner.txt'
 email_ignored_macs = 'ignored.txt'
-try:
-    with open(email_ignored_macs, 'r') as f:
-        ignored_macs = json.load(f)
-except IOError:
-    ignored_macs = list()
+
 
 while(True):
+
+    try:
+        with open(email_ignored_macs, 'r') as f:
+            ignored_macs = json.load(f)
+    except IOError:
+        ignored_macs = list()
 
     try:
         with open(status_knowledge_file,'r') as f:
@@ -69,7 +82,13 @@ while(True):
 
     for i in range(2): #Run two iteration of nmap to determine online devices
         print "Running nmap Iteration: "+str(i)
-        nmap = subprocess.check_output('sudo nmap -sP -PE -PA21,23,80,3389 192.168.10.1/24',shell=True)
+        try:
+            nmap = subprocess.check_output('sudo nmap -sP -PE -PA21,23,80,3389 192.168.10.1/24',shell=True)
+        except subprocess.CalledProcessError as e:
+            print 'nmam error'
+            print str(e)
+            time.sleep(60*5)
+            continue
 
         print nmap
         pattern = "Nmap scan report for (.*)\nHost is up \(([0-9.]*)s latency\).\nMAC Address: ([0-9A-F:.]*) \((.*)\)\n"
@@ -104,19 +123,27 @@ while(True):
             if not macaddress in ignored_macs:
                 email_lines += 'Came Home: '+macaddress +' ' + str(new_knowledge[macaddress])+'\n'
             saveRecord(macaddress,new_knowledge[macaddress])
-            #TODO Give notification somebody came home
         if status == 1 and macaddress not in new_knowledge: #this macaddress is offline just now
-            oldknowledge[macaddress][0] = 0
-            #TODO Give notification that this person left home
-            if not macaddress in ignored_macs:
-                email_lines += 'Left Home: ' + macaddress + ' ' + str(oldknowledge[macaddress])+'\n'
-            saveRecord(macaddress,oldknowledge[macaddress])
+            ip = oldknowledge[macaddress][3] #Get its previously known IP address
+            try:
+                ping_response = subprocess.check_output('ping -c 4 '+ip,shell=True)
+            except subprocess.CalledProcessError as e:
+                print e.output
+                ping_response = e.output
+            ping_result = re.findall('([0-9]) received',ping_response)
+            if ping_result[0] == '0': #Really offline
+                oldknowledge[macaddress][0] = 0
+                if not macaddress in ignored_macs:
+                    email_lines += 'Left Home: ' + macaddress + ' ' + str(oldknowledge[macaddress])+'\n'
+                saveRecord(macaddress,oldknowledge[macaddress])
+            else:
+                #Device is actually present. Ignore that it is gone in nmap, just a nmap glitch
+                print 'Ping Alive : ' + macaddress + ': ' + str(oldknowledge[macaddress])
 
     for macaddress in new_knowledge.keys():
         if macaddress not in oldknowledge:
             #Got brand new device
             oldknowledge[macaddress] = new_knowledge[macaddress]
-            #TODO send notification that brand new device has been found
             if not macaddress in ignored_macs:
                 email_lines += 'New MAC Home: ' + macaddress + ' ' + str(new_knowledge[macaddress])+'\n'
             saveRecord(macaddress, new_knowledge[macaddress])

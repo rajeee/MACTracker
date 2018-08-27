@@ -1,2 +1,2 @@
 # MACTracker
-Track the devices on the local network. When new devices are discovered or when know devices join or leave the network (as found from nmap), email is sent as well as data is logged. Suitable for Raspberry Pi.
+Track the devices on the local network based on mac address. When new devices are discovered or when known devices join or leave the network (as found from nmap), email is sent. Events are logged to local file. Suitable for Raspberry Pi.
